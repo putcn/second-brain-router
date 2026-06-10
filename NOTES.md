@@ -63,38 +63,66 @@ Without this, all AX calls silently return `None` / error with no exception.
 
 ## Rust / Clippy / rustfmt Rules Learned
 
-### `rustfmt` struct initializer formatting
+### `rustfmt` formatting rules — summary
 
-`rustfmt` always expands struct literals with more than one field to multi-line,
-regardless of `max_width`. Single-line struct init only works for unit structs or
-structs with one field.
+These rules have been verified against actual CI failures.
+
+**Function signatures**: if the entire signature fits in `max_width` (100), keep it single-line.
+If not, each parameter goes on its own line.
 
 ```rust
-// Will be reformatted by rustfmt — don't write this:
-AXWatcher { config, last_content_hash: None }
+// single-line when it fits:
+pub async fn capture_and_extract(ollama_url: &str, model: &str) -> Result<String>
 
-// Write this instead:
-AXWatcher {
-    config,
-    last_content_hash: None,
-}
+// multi-line when it doesn’t:
+async fn extract_text_from_image(
+    ollama_url: &str,
+    model: &str,
+    b64_image: String,
+) -> Result<String>
 ```
 
-### `rustfmt` function call line-breaking rules
-
-- If the entire call fits within `max_width` (100), it stays on one line.
-- If it doesn't fit, `rustfmt` breaks **at the assignment**, not by expanding args:
+**Macro calls (`info!`, `warn!`, etc.)**: if the format string + args exceed `max_width`,
+`rustfmt` always expands to multi-line, even if you wrote it single-line.
 
 ```rust
-// rustfmt prefers this (args fit on one line after the =):
-let chunks = chunk_text(&ctx.text, 512, 64, cfg.capture.min_text_length);
+// rustfmt will expand this if > 100 chars:
+info!("screenshot captured ({} bytes), sending to vision model", png_bytes.len());
 
-// If args don't fit, it breaks at the = and keeps args together:
+// → becomes:
+info!(
+    "screenshot captured ({} bytes), sending to vision model",
+    png_bytes.len()
+);
+```
+
+**Method chains with `.await`**: `rustfmt` splits each step to its own line.
+
+```rust
+// rustfmt produces:
+let parsed: VisionResponse = resp
+    .json()
+    .await
+    .context("failed to parse vision response")?;
+```
+
+**Two-arg method calls**: if both args fit on one line, `rustfmt` keeps them there,
+even if you wrote them multi-line.
+
+```rust
+// rustfmt collapses to single line if it fits:
+image.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+```
+
+**Assignment line-break**: when the RHS doesn’t fit on one line with the `let`, `rustfmt`
+breaks after `=` and keeps the RHS together:
+
+```rust
 let chunks =
     chunk_text(&ctx.text, 512, 64, cfg.capture.min_text_length);
 ```
 
-- For chained `.await` into a `match`, `rustfmt` puts `.await` on the next line:
+**Chained `.await` into `match`**: `.await` goes on the line *after* the call, indented:
 
 ```rust
 match router::query(s.client_ref(), vector, Some(&ctx.app_name))
@@ -109,13 +137,7 @@ match router::query(s.client_ref(), vector, Some(&ctx.app_name))
 When a `match` expression only returns `true` or `false`, clippy requires `matches!`:
 
 ```rust
-// clippy rejects this:
-let should_hint = match (&last_hint_app, &last_hint_at) {
-    (Some(app), Some(t)) if app == &ctx.app_name && t.elapsed().as_millis() < COOLDOWN => false,
-    _ => true,
-};
-
-// Use this instead:
+// clippy rejects this — use matches! instead:
 let should_hint = !matches!(
     (&last_hint_app, &last_hint_at),
     (Some(app), Some(t))
@@ -126,7 +148,7 @@ let should_hint = !matches!(
 ### `#[allow(dead_code)]` for planned-but-unused fields
 
 With `-D warnings` in clippy, unused fields/functions are compile errors.
-For fields pre-written for future versions, annotate individually:
+Annotate individually with a version comment:
 
 ```rust
 /// Reserved for v0.5 UI provenance display
@@ -134,37 +156,20 @@ For fields pre-written for future versions, annotate individually:
 pub window_title: String,
 ```
 
-For an entire module not yet wired up:
-
-```rust
-#![allow(dead_code)]  // at top of file, removed once module is used
-```
+For an entire module not yet wired up: `#![allow(dead_code)]` at top of file.
 
 ### `qdrant_client::Qdrant` does not implement `Debug`
 
 Any struct containing `Qdrant` cannot `#[derive(Debug)]`. Use `#[derive(Clone)]` only.
 
-```rust
-// Compile error:
-#[derive(Debug, Clone)]
-pub struct MemoryStore { client: Qdrant }
-
-// Correct:
-#[derive(Clone)]
-pub struct MemoryStore { client: Qdrant }
-```
-
 ### `qdrant_client` payload `Value::as_str()` returns `Option<&String>`, not `Option<&str>`
 
-Using `.unwrap_or("literal")` after `.and_then(|v| v.as_str())` causes a type mismatch
-because `&String != &str`. Use `.map_or()` instead:
-
 ```rust
-// Type error:
-payload.get("app_name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string()
+// Type error — &String != &str:
+.unwrap_or("unknown")
 
 // Correct:
-payload.get("app_name").and_then(|v| v.as_str()).map_or("unknown", |v| v).to_string()
+.map_or("unknown", |v| v)
 ```
 
 ---
@@ -184,13 +189,7 @@ the capture layer behind a trait.
 ### Run locally via Docker
 
 ```bash
-# Use docker-compose (preferred):
 cd docker && docker compose up -d
-
-# Or run directly:
-docker run -p 6333:6333 -p 6334:6334 \
-  -v $(pwd)/qdrant_storage:/qdrant/storage \
-  qdrant/qdrant
 ```
 
 REST API + dashboard at `http://localhost:6333/dashboard`. gRPC at `6334` (used by sbr-daemon).
@@ -211,17 +210,23 @@ REST API + dashboard at `http://localhost:6333/dashboard`. gRPC at `6334` (used 
 ```bash
 brew install ollama
 ollama serve &
-ollama pull nomic-embed-text
+ollama pull nomic-embed-text   # for embedder.rs
+ollama pull qwen2.5vl          # for screenshot fallback (v0.4)
 ```
 
-Call via REST:
+Embed call:
 ```bash
 curl http://localhost:11434/api/embed \
   -d '{"model": "nomic-embed-text", "input": "your text here"}'
+# returns: { "embeddings": [[...768 floats...]] }
 ```
 
-Returns `{ "embeddings": [[...768 floats...]] }`. The outer array supports batch input;
-we currently call one text at a time.
+Vision call (screenshot fallback):
+```bash
+curl http://localhost:11434/api/generate \
+  -d '{"model": "qwen2.5vl", "prompt": "Extract text", "images": ["<base64>"], "stream": false}'
+# returns: { "response": "extracted text..." }
+```
 
 ---
 

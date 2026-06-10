@@ -14,10 +14,6 @@ use tracing::{debug, info};
 /// Minimum AX text length below which we fall back to screenshot.
 pub const MIN_CHARS_FOR_AX: usize = 50;
 
-// ---------------------------------------------------------------------------
-// Ollama vision API types
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Serialize)]
 struct VisionRequest<'a> {
     model: &'a str,
@@ -31,20 +27,15 @@ struct VisionResponse {
     response: String,
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 /// Capture the primary display and extract text via Ollama vision model.
-/// Returns extracted plain text, or an error.
-pub async fn capture_and_extract(
-    ollama_url: &str,
-    model: &str,
-) -> Result<String> {
+pub async fn capture_and_extract(ollama_url: &str, model: &str) -> Result<String> {
     let png_bytes = capture_screen().context("screen capture failed")?;
     let b64 = B64.encode(&png_bytes);
 
-    info!("screenshot captured ({} bytes), sending to vision model", png_bytes.len());
+    info!(
+        "screenshot captured ({} bytes), sending to vision model",
+        png_bytes.len()
+    );
 
     extract_text_from_image(ollama_url, model, b64).await
 }
@@ -53,10 +44,6 @@ pub async fn capture_and_extract(
 pub fn ax_text_too_sparse(ax_text: &str) -> bool {
     ax_text.trim().len() < MIN_CHARS_FOR_AX
 }
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 /// Capture the primary display, returning raw PNG bytes.
 fn capture_screen() -> Result<Vec<u8>> {
@@ -69,10 +56,7 @@ fn capture_screen() -> Result<Vec<u8>> {
 
     let mut buf: Vec<u8> = Vec::new();
     image
-        .write_to(
-            &mut std::io::Cursor::new(&mut buf),
-            image::ImageFormat::Png,
-        )
+        .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
         .context("PNG encode failed")?;
 
     debug!("PNG encoded: {} bytes", buf.len());
@@ -109,7 +93,10 @@ async fn extract_text_from_image(
         anyhow::bail!("Ollama vision returned {}: {}", status, text);
     }
 
-    let parsed: VisionResponse = resp.json().await.context("failed to parse vision response")?;
+    let parsed: VisionResponse = resp
+        .json()
+        .await
+        .context("failed to parse vision response")?;
     Ok(parsed.response.trim().to_string())
 }
 

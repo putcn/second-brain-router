@@ -18,11 +18,8 @@ use std::{
 use tokio::time::sleep;
 use tracing::{error, info, warn};
 
-/// Minimum ms between hints for the same app (cooldown).
 const HINT_COOLDOWN_MS: u128 = 30_000;
-/// Ollama base URL.
 const OLLAMA_URL: &str = "http://localhost:11434";
-/// Vision model for screenshot fallback.
 const VISION_MODEL: &str = "qwen2.5vl";
 
 #[tokio::main]
@@ -95,11 +92,13 @@ async fn run_daemon() {
                 event.texts.len()
             );
 
-            // --- v0.4: screenshot fallback ---
             let text = if cfg.capture.screenshot_enabled
                 && screenshot::ax_text_too_sparse(&event.texts.join(" "))
             {
-                info!("AX sparse for {}, trying screenshot fallback", event.app_name);
+                info!(
+                    "AX sparse for {}, trying screenshot fallback",
+                    event.app_name
+                );
                 match screenshot::capture_and_extract(OLLAMA_URL, VISION_MODEL).await {
                     Ok(t) => {
                         info!("vision extracted {} chars", t.len());
@@ -121,7 +120,6 @@ async fn run_daemon() {
             };
 
             if let Some(ref s) = store {
-                // --- store chunks into memory ---
                 let chunks = chunk_text(&ctx.text, 512, 64, cfg.capture.min_text_length);
                 for chunk in &chunks {
                     let hash = content_hash(chunk);
@@ -157,7 +155,6 @@ async fn run_daemon() {
                     }
                 }
 
-                // --- router: surface hint if context is meaningful ---
                 if ctx.is_meaningful(cfg.capture.min_text_length) {
                     let should_hint = !matches!(
                         (&last_hint_app, &last_hint_at),
