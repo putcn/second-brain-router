@@ -61,6 +61,8 @@ Without this, all AX calls silently return `None` / error with no exception.
 
 ---
 
+## Rust / Clippy / rustfmt Rules Learned
+
 ### `rustfmt` struct initializer formatting
 
 `rustfmt` always expands struct literals with more than one field to multi-line,
@@ -78,7 +80,96 @@ AXWatcher {
 }
 ```
 
+### `rustfmt` function call line-breaking rules
+
+- If the entire call fits within `max_width` (100), it stays on one line.
+- If it doesn't fit, `rustfmt` breaks **at the assignment**, not by expanding args:
+
+```rust
+// rustfmt prefers this (args fit on one line after the =):
+let chunks = chunk_text(&ctx.text, 512, 64, cfg.capture.min_text_length);
+
+// If args don't fit, it breaks at the = and keeps args together:
+let chunks =
+    chunk_text(&ctx.text, 512, 64, cfg.capture.min_text_length);
+```
+
+- For chained `.await` into a `match`, `rustfmt` puts `.await` on the next line:
+
+```rust
+match router::query(s.client_ref(), vector, Some(&ctx.app_name))
+    .await
+{
+    ...
+}
+```
+
+### `clippy::match_like_matches_macro`
+
+When a `match` expression only returns `true` or `false`, clippy requires `matches!`:
+
+```rust
+// clippy rejects this:
+let should_hint = match (&last_hint_app, &last_hint_at) {
+    (Some(app), Some(t)) if app == &ctx.app_name && t.elapsed().as_millis() < COOLDOWN => false,
+    _ => true,
+};
+
+// Use this instead:
+let should_hint = !matches!(
+    (&last_hint_app, &last_hint_at),
+    (Some(app), Some(t))
+        if app == &ctx.app_name && t.elapsed().as_millis() < COOLDOWN
+);
+```
+
+### `#[allow(dead_code)]` for planned-but-unused fields
+
+With `-D warnings` in clippy, unused fields/functions are compile errors.
+For fields pre-written for future versions, annotate individually:
+
+```rust
+/// Reserved for v0.5 UI provenance display
+#[allow(dead_code)]
+pub window_title: String,
+```
+
+For an entire module not yet wired up:
+
+```rust
+#![allow(dead_code)]  // at top of file, removed once module is used
+```
+
+### `qdrant_client::Qdrant` does not implement `Debug`
+
+Any struct containing `Qdrant` cannot `#[derive(Debug)]`. Use `#[derive(Clone)]` only.
+
+```rust
+// Compile error:
+#[derive(Debug, Clone)]
+pub struct MemoryStore { client: Qdrant }
+
+// Correct:
+#[derive(Clone)]
+pub struct MemoryStore { client: Qdrant }
+```
+
+### `qdrant_client` payload `Value::as_str()` returns `Option<&String>`, not `Option<&str>`
+
+Using `.unwrap_or("literal")` after `.and_then(|v| v.as_str())` causes a type mismatch
+because `&String != &str`. Use `.map_or()` instead:
+
+```rust
+// Type error:
+payload.get("app_name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string()
+
+// Correct:
+payload.get("app_name").and_then(|v| v.as_str()).map_or("unknown", |v| v).to_string()
+```
+
 ---
+
+## CI
 
 ### CI runs on `macos-latest`
 
@@ -88,47 +179,38 @@ the capture layer behind a trait.
 
 ---
 
-### `#[allow(dead_code)]` for planned-but-unused code
-
-With `-D warnings` in clippy, unused fields/functions are compile errors.
-For code that is intentionally pre-written for future versions, annotate with:
-
-```rust
-/// Reserved for v0.2 memory pipeline
-#[allow(dead_code)]
-pub window_title: String,
-```
-
-For an entire module of future code (e.g. `chunker.rs` before v0.2 wires it up):
-
-```rust
-#![allow(dead_code)]  // at top of file
-```
-
-Remove these annotations once the code is actively used.
-
----
-
-## Qdrant (coming in v0.2)
+## Qdrant
 
 ### Run locally via Docker
 
 ```bash
+# Use docker-compose (preferred):
+cd docker && docker compose up -d
+
+# Or run directly:
 docker run -p 6333:6333 -p 6334:6334 \
   -v $(pwd)/qdrant_storage:/qdrant/storage \
   qdrant/qdrant
 ```
 
-REST API at `http://localhost:6333`, gRPC at `6334`.
-Dashboard at `http://localhost:6333/dashboard`.
+REST API + dashboard at `http://localhost:6333/dashboard`. gRPC at `6334` (used by sbr-daemon).
+
+### Collection setup
+
+- Collection name: `sbr_memory`
+- Vector dimension: `768` (nomic-embed-text output)
+- Distance metric: `Cosine`
+- `ensure_collection()` is idempotent — safe to call on every startup.
 
 ---
 
-## Ollama (coming in v0.2)
+## Ollama
 
 ### Embedding model
 
 ```bash
+brew install ollama
+ollama serve &
 ollama pull nomic-embed-text
 ```
 
@@ -138,7 +220,8 @@ curl http://localhost:11434/api/embed \
   -d '{"model": "nomic-embed-text", "input": "your text here"}'
 ```
 
-Returns a 768-dim float vector. Use this as the qdrant vector dimension.
+Returns `{ "embeddings": [[...768 floats...]] }`. The outer array supports batch input;
+we currently call one text at a time.
 
 ---
 
