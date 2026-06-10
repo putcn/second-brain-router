@@ -59,12 +59,8 @@ async fn main() {
 
             // Feed into memory pipeline if qdrant is available
             if let Some(ref s) = store {
-                let chunks = chunk_text(
-                    &event.texts.join(" "),
-                    512,
-                    64,
-                    cfg.capture.min_text_length,
-                );
+                let chunks =
+                    chunk_text(&event.texts.join(" "), 512, 64, cfg.capture.min_text_length);
 
                 for chunk in chunks {
                     let hash = content_hash(&chunk);

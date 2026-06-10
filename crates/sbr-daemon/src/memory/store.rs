@@ -3,12 +3,10 @@
 use anyhow::{Context, Result};
 use qdrant_client::{
     qdrant::{
-        CreateCollectionBuilder, Distance, PointStruct, UpsertPointsBuilder,
-        VectorParamsBuilder,
+        CreateCollectionBuilder, Distance, PointStruct, UpsertPointsBuilder, VectorParamsBuilder,
     },
     Qdrant,
 };
-use serde_json::json;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -88,12 +86,9 @@ impl MemoryStore {
 
     /// Check whether a chunk with the given content hash already exists (for dedup).
     pub async fn exists_by_hash(&self, content_hash: &str) -> Result<bool> {
-        use qdrant_client::qdrant::{Filter, Condition};
+        use qdrant_client::qdrant::{Condition, Filter};
 
-        let filter = Filter::must([Condition::matches(
-            "content_hash",
-            content_hash.to_string(),
-        )]);
+        let filter = Filter::must([Condition::matches("content_hash", content_hash.to_string())]);
 
         let result = self
             .client
