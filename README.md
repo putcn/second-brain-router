@@ -1,7 +1,7 @@
 # 🧠 Second Brain Router
 
-> **The missing context layer between you and your work.**  
-> Not a chatbot. Not a search engine. A personal AI system that knows *when* to surface the right memory, decision, or knowledge — and when to stay silent.
+> **The missing context layer between you and your work.**
+> Not a chatbot. Not a search engine. A local-first AI daemon that silently captures what you see, reads, and discuss — and surfaces the right context at the right moment.
 
 ---
 
@@ -9,118 +9,102 @@
 
 The biggest productivity killer isn't lack of intelligence — it's **context reconstruction overhead**.
 
-Every day, knowledge workers spend hours answering questions like:
-- *Why was this code written this way?*
+Every day, knowledge workers spend hours re-answering:
+- *Why was this written this way?*
 - *Who made that decision, and when?*
 - *What did we conclude in that meeting last week?*
-- *Has this bug been seen before?*
+- *Has this problem been solved before?*
 
-Second Brain Router eliminates that. It acts as a **persistent, queryable, privacy-first context layer** that sits between your brain and your tools.
+Second Brain Router eliminates that. It runs locally, captures passively, and routes proactively.
 
 ---
 
-## Core Concept
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Your Daily Work                      │
-│   (Code Editor · Meetings · Slack · Browser · Docs)    │
+│    (Browser · Slack · Docs · Email · Meetings)          │
 └────────────────────┬────────────────────────────────────┘
-                     │ continuous passive capture
+                     │ passive capture (AX API + screenshot)
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│              Second Brain Router (local)                │
+│           sbr-daemon  (Rust, runs locally)              │
 │                                                         │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
-│  │  Ingestion  │  │   Memory     │  │    Router     │  │
-│  │  Pipeline   │→ │   Store      │→ │   Engine      │  │
-│  │             │  │  (semantic)  │  │               │  │
-│  └─────────────┘  └──────────────┘  └───────┬───────┘  │
-└──────────────────────────────────────────────┼──────────┘
-                                               │ push at right moment
-                                               ▼
-                                    ┌──────────────────┐
-                                    │  Contextual Hint │
-                                    │  (non-intrusive) │
-                                    └──────────────────┘
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  ax_watcher  │  │   chunker    │  │   embedder   │  │
+│  │  (AX API)    │→ │  + dedup     │→ │  (local LLM) │  │
+│  │  screenshot  │  │  + filter    │  │              │  │
+│  └──────────────┘  └──────────────┘  └──────┬───────┘  │
+│                                             │           │
+│  ┌──────────────────────────────────────────▼────────┐  │
+│  │              Memory Store (ChromaDB / qdrant)     │  │
+│  └──────────────────────────────────────────┬────────┘  │
+│                                             │           │
+│  ┌──────────────────────────────────────────▼────────┐  │
+│  │         Router Engine (context match + ranking)   │  │
+│  └──────────────────────────────────────────┬────────┘  │
+└───────────────────────────────────────────  │ ──────────┘
+                                              │ non-intrusive hint
+                                              ▼
+                                   ┌─────────────────┐
+                                   │  Overlay / CLI  │
+                                   │  (Tauri or tui) │
+                                   └─────────────────┘
 ```
 
-The Router's prime directive: **know when to speak, and when to shut up.**
+### Capture Strategy (by priority)
+
+| Layer | Method | Coverage | Privacy Risk |
+|-------|--------|----------|--------------|
+| Focused element text | AX `kAXSelectedTextAttribute` | Selected text | 🟢 Low |
+| Full window UI tree | AX recursive traverse | All visible text in App | 🟢 Low |
+| Screenshot + Vision | `mss` + local vision model | Images, Canvas, Video | 🟡 Medium |
+| Microphone | local Whisper (opt-in) | Meetings, voice | 🔴 High |
+
+AX API covers ~80% of normal user scenarios (browser, docs, Slack, email). Vision model is the fallback for Canvas-based apps (Figma, YouTube, etc).
 
 ---
 
-## What It Does
+## Tech Stack
 
-### 🔍 Passive Context Capture
-- Screen content (OCR + vision model, opt-in)
-- Voice / meeting transcription (local Whisper)
-- Files, code, documents via file system watcher
-- Browser activity via lightweight extension
-- Git history, PR descriptions, commit messages
-
-### 🗂️ Semantic Memory Store
-- All captured content compressed into **traceable semantic chunks**
-- Organized by: person, project, decision, timeline
-- Local vector store (no cloud, no leaks)
-- Full provenance: every memory links back to its source
-
-### 🧭 Routing Engine
-- Detects your current task context (what file, what window, what conversation)
-- Retrieves top-k relevant memory chunks silently in background
-- Pushes a **non-intrusive hint** only when confidence is high enough
-- Three output modes:
-  - 💡 **Evidence only** — "This was changed in PR #142 two weeks ago"
-  - 🔔 **Soft alert** — "This decision has a known tradeoff, want context?"
-  - 🤐 **Silent** — stores and learns, says nothing
-
-### 🔒 Privacy First
-- Everything runs **100% locally** by default (Ollama + local Whisper)
-- Zero telemetry
-- Per-project data isolation
-- Explicit opt-in for each capture source
+| Layer | Technology | Reason |
+|-------|-----------|--------|
+| Core daemon | **Rust** | Native macOS AX API via FFI, zero overhead, memory safe |
+| macOS AX binding | `accessibility` + `core-foundation` crates | Clean FFI to AXUIElement |
+| Screenshot | `xcap` crate | Cross-platform screen capture |
+| Embedding | Ollama HTTP API (local) | No cloud, pluggable model |
+| Vector store | `qdrant` (local docker) | Fast ANN search, rich filtering |
+| Desktop UI | Tauri + React | Rust backend, lightweight overlay |
+| Config | TOML | Simple, human-readable |
 
 ---
 
-## Tech Stack (Planned)
-
-| Layer | Technology |
-|-------|-----------|
-| Local LLM inference | Ollama (Llama 3 / Qwen2.5) |
-| Speech-to-text | faster-whisper (local) |
-| Embedding & retrieval | sentence-transformers + ChromaDB |
-| File watching | watchdog (Python) |
-| Screen capture | mss + vision model (opt-in) |
-| Desktop overlay UI | Tauri (Rust + React) |
-| Orchestration | Python + asyncio |
-| Config & privacy rules | YAML / TOML |
-
----
-
-## MVP Scope (v0.1)
-
-The first version focuses on **code + Git context only** — the highest-signal, lowest-privacy-risk source.
-
-- [ ] Git repo watcher: index commits, PRs, and inline code comments
-- [ ] Local embedding pipeline with ChromaDB
-- [ ] CLI query interface: `sbr ask "why was this function refactored?"`
-- [ ] VS Code extension: show relevant context in sidebar when a file opens
-- [ ] Basic provenance: every result shows source file, commit, and date
-
-**Out of scope for v0.1:** screen capture, voice, browser extension, real-time push
-
----
-
-## Project Structure (Planned)
+## Project Structure
 
 ```
 second-brain-router/
-├── ingestion/          # capture pipelines (git, file, voice, screen)
-├── memory/             # embedding, chunking, vector store
-├── router/             # context detection + retrieval logic
-├── ui/                 # Tauri desktop overlay
-├── extensions/         # VS Code, browser
-├── config/             # privacy rules, source toggles
-└── cli/                # sbr CLI tool
+├── crates/
+│   ├── sbr-daemon/         # main capture + routing daemon (Rust)
+│   │   ├── src/
+│   │   │   ├── main.rs
+│   │   │   ├── capture/
+│   │   │   │   ├── ax_watcher.rs   # AX API: focused element + UI tree
+│   │   │   │   └── screenshot.rs   # fallback: screen capture
+│   │   │   ├── memory/
+│   │   │   │   ├── chunker.rs      # text chunking + dedup
+│   │   │   │   ├── embedder.rs     # calls local Ollama embed API
+│   │   │   │   └── store.rs        # qdrant client
+│   │   │   ├── router/
+│   │   │   │   ├── context.rs      # detect current task context
+│   │   │   │   └── engine.rs       # retrieval + ranking + hint decision
+│   │   │   └── config.rs           # TOML config loader
+│   │   └── Cargo.toml
+│   └── sbr-ui/             # Tauri overlay app (future)
+├── config/
+│   └── default.toml        # default privacy + capture settings
+├── TODOS.md
+└── README.md
 ```
 
 ---
@@ -129,27 +113,29 @@ second-brain-router/
 
 | Version | Focus |
 |---------|-------|
-| v0.1 | Git + code context, CLI + VS Code sidebar |
-| v0.2 | File & document ingestion, project timeline view |
-| v0.3 | Local meeting transcription + speaker-tagged memory |
-| v0.4 | Real-time routing engine with non-intrusive overlay |
-| v0.5 | Screen capture (opt-in), full context graph UI |
+| **v0.1** | AX watcher: capture focused + full window text, print to stdout |
+| **v0.2** | Chunker + dedup + local embedding via Ollama + qdrant store |
+| **v0.3** | Router engine: context detection + top-k retrieval + CLI hint |
+| **v0.4** | Screenshot fallback + local vision model (qwen-vl via Ollama) |
+| **v0.5** | Tauri overlay UI: non-intrusive floating hint window |
+| **v0.6** | Microphone capture + local Whisper transcription (opt-in) |
+
+---
+
+## Privacy Model
+
+- **Everything is local.** No data ever leaves your machine.
+- **Opt-in by layer.** AX text is on by default; screenshot and microphone are off by default.
+- **Per-app exclusions.** You can blacklist specific apps (e.g. banking, password managers).
+- **Zero telemetry.** The daemon has no network calls except to `localhost` (Ollama + qdrant).
 
 ---
 
 ## Philosophy
 
-This is not a replacement for thinking. It's a reduction of **cognitive load from retrieval** so that more mental energy goes toward **judgment, creation, and execution**.
-
 > "The goal is not to remember everything. The goal is to never waste time remembering things that don't require judgment."
 
----
-
-## Contributing
-
-This project is in early design phase. Issues and RFC-style discussions are very welcome.
-
-If you're interested in contributing to the ingestion pipeline, routing logic, or UI layer — open an issue to discuss.
+This is not a replacement for thinking. It reduces **cognitive load from retrieval** so mental energy goes toward judgment, creation, and execution.
 
 ---
 

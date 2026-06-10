@@ -1,0 +1,30 @@
+[capture]
+ax_enabled = true
+screenshot_enabled = false
+poll_interval_ms = 1000
+max_tree_depth = 8
+min_text_length = 10
+excluded_apps = [
+    "1Password",
+    "Keychain Access",
+    "System Preferences",
+    "System Settings",
+    "Bitwarden",
+]
+
+[memory]
+# coming in v0.2
+qdrant_url = "http://localhost:6333"
+collection_name = "sbr_memory"
+chunk_size_tokens = 512
+chunk_overlap_tokens = 64
+
+[router]
+# coming in v0.3
+relevance_threshold = 0.75
+hint_cooldown_seconds = 30
+
+[embedding]
+# coming in v0.2
+ollama_url = "http://localhost:11434"
+model = "nomic-embed-text"
