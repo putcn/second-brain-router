@@ -4,6 +4,8 @@ use core_foundation::{
     base::{CFType, TCFType},
     string::{CFString, CFStringRef},
 };
+use objc2::msg_send;
+use objc2_app_kit::NSWorkspace;
 use std::collections::HashSet;
 use tracing::{debug, warn};
 
@@ -91,15 +93,18 @@ extern "C" {
     ) -> i32;
 }
 
+/// Get frontmost app PID and name via NSWorkspace + raw msg_send!.
+/// We use msg_send! directly because objc2-app-kit gates `processIdentifier`
+/// behind a feature flag that conflicts with other features we need.
 unsafe fn get_frontmost_app() -> Option<(i32, String)> {
-    use objc2_app_kit::NSWorkspace;
-
     let workspace = NSWorkspace::sharedWorkspace();
     let active_app = workspace.frontmostApplication()?;
 
-    let pid: i32 = active_app.processIdentifier();
-    let name = active_app
-        .localizedName()
+    // pid_t is i32 on Apple platforms
+    let pid: i32 = msg_send![&*active_app, processIdentifier];
+
+    let ns_name = active_app.localizedName();
+    let name = ns_name
         .map(|n| n.to_string())
         .unwrap_or_else(|| "Unknown".to_string());
 
