@@ -95,8 +95,7 @@ async fn run_daemon() {
 
             if let Some(ref s) = store {
                 // --- store chunks into memory ---
-                let chunks =
-                    chunk_text(&ctx.text, 512, 64, cfg.capture.min_text_length);
+                let chunks = chunk_text(&ctx.text, 512, 64, cfg.capture.min_text_length);
                 for chunk in &chunks {
                     let hash = content_hash(chunk);
                     match s.exists_by_hash(&hash).await {
@@ -140,12 +139,8 @@ async fn run_daemon() {
                     if should_hint {
                         match embedder.embed(&ctx.text).await {
                             Ok(vector) => {
-                                match router::query(
-                                    s.client_ref(),
-                                    vector,
-                                    Some(&ctx.app_name),
-                                )
-                                .await
+                                match router::query(s.client_ref(), vector, Some(&ctx.app_name))
+                                    .await
                                 {
                                     Ok(hits) if !hits.is_empty() => {
                                         router::print_hints(&hits);
