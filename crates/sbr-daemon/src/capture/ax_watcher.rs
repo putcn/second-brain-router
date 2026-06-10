@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use core_foundation::{
-    array::{CFArray, CFArrayRef},
+    array::CFArray,
     base::{CFType, TCFType},
     string::{CFString, CFStringRef},
 };
@@ -9,14 +9,12 @@ use tracing::{debug, warn};
 
 use crate::config::Config;
 
-// AX API constants (values from AXAttributeConstants.h)
 const K_AX_FOCUSED_UI_ELEMENT_ATTRIBUTE: &str = "AXFocusedUIElement";
 const K_AX_CHILDREN_ATTRIBUTE: &str = "AXChildren";
 const K_AX_VALUE_ATTRIBUTE: &str = "AXValue";
 const K_AX_SELECTED_TEXT_ATTRIBUTE: &str = "AXSelectedText";
 const K_AX_ROLE_ATTRIBUTE: &str = "AXRole";
 const K_AX_WINDOWS_ATTRIBUTE: &str = "AXWindows";
-const K_AX_TITLE_ATTRIBUTE: &str = "AXTitle";
 const K_AX_ROLE_SECURE_TEXT_FIELD: &str = "AXSecureTextField";
 
 #[derive(Debug, Clone)]
@@ -35,10 +33,7 @@ pub struct AXWatcher {
 
 impl AXWatcher {
     pub fn new(config: Config) -> Self {
-        AXWatcher {
-            config,
-            last_content_hash: None,
-        }
+        AXWatcher { config, last_content_hash: None }
     }
 
     pub async fn poll(&mut self) -> Option<CaptureEvent> {
@@ -93,18 +88,15 @@ extern "C" {
     ) -> i32;
 }
 
-#[link(name = "AppKit", kind = "framework")]
-extern "C" {
-    // accessed via NSWorkspace Objective-C API, bridged through objc2 crate
-}
-
 unsafe fn get_frontmost_app() -> Option<(i32, String)> {
-    use objc2::rc::Retained;
     use objc2_app_kit::NSWorkspace;
 
     let workspace = NSWorkspace::sharedWorkspace();
     let active_app = workspace.frontmostApplication()?;
-    let pid = active_app.processIdentifier();
+
+    // processIdentifier is exposed as a plain method on NSRunningApplication
+    // via objc2-app-kit; it returns pid_t which is i32 on Apple platforms.
+    let pid: i32 = active_app.processIdentifier();
     let name = active_app
         .localizedName()
         .map(|n| n.to_string())
