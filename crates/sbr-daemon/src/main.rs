@@ -3,6 +3,7 @@ mod config;
 mod engine;
 mod memory;
 
+use capture::screenshot;
 use engine::{context::Context, router};
 use memory::{
     chunker::{chunk_text, content_hash},
@@ -19,6 +20,10 @@ use tracing::{error, info, warn};
 
 /// Minimum ms between hints for the same app (cooldown).
 const HINT_COOLDOWN_MS: u128 = 30_000;
+/// Ollama base URL.
+const OLLAMA_URL: &str = "http://localhost:11434";
+/// Vision model for screenshot fallback.
+const VISION_MODEL: &str = "qwen2.5vl";
 
 #[tokio::main]
 async fn main() {
@@ -63,8 +68,8 @@ async fn run_ask(query_text: &str) {
 async fn run_daemon() {
     let cfg = config::Config::load_or_default();
     info!(
-        "sbr-daemon starting. poll_interval={}ms",
-        cfg.capture.poll_interval_ms
+        "sbr-daemon starting. poll_interval={}ms screenshot={}",
+        cfg.capture.poll_interval_ms, cfg.capture.screenshot_enabled
     );
     info!("excluded apps: {:?}", cfg.capture.excluded_apps);
 
@@ -90,7 +95,30 @@ async fn run_daemon() {
                 event.texts.len()
             );
 
-            let ctx = Context::from_event(&event);
+            // --- v0.4: screenshot fallback ---
+            let text = if cfg.capture.screenshot_enabled
+                && screenshot::ax_text_too_sparse(&event.texts.join(" "))
+            {
+                info!("AX sparse for {}, trying screenshot fallback", event.app_name);
+                match screenshot::capture_and_extract(OLLAMA_URL, VISION_MODEL).await {
+                    Ok(t) => {
+                        info!("vision extracted {} chars", t.len());
+                        t
+                    }
+                    Err(e) => {
+                        warn!("screenshot fallback failed: {}", e);
+                        event.texts.join(" ")
+                    }
+                }
+            } else {
+                event.texts.join(" ")
+            };
+
+            let ctx = Context {
+                app_name: event.app_name.clone(),
+                window_title: event.window_title.clone(),
+                text: text.clone(),
+            };
 
             if let Some(ref s) = store {
                 // --- store chunks into memory ---
@@ -113,7 +141,13 @@ async fn run_daemon() {
                                 app_name: event.app_name.clone(),
                                 window_title: event.window_title.clone(),
                                 timestamp: event.timestamp.to_rfc3339(),
-                                source: "ax".into(),
+                                source: if cfg.capture.screenshot_enabled
+                                    && screenshot::ax_text_too_sparse(&event.texts.join(" "))
+                                {
+                                    "screenshot".into()
+                                } else {
+                                    "ax".into()
+                                },
                             };
                             if let Err(e) = s.upsert(&payload, vector).await {
                                 error!("qdrant upsert failed: {}", e);

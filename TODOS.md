@@ -8,34 +8,15 @@ Progress tracker. Updated as work proceeds.
 
 > Goal: a Rust binary that runs on macOS, captures text from the active window via AX API, and prints structured output to stdout.
 
-### Setup
 - [x] Initialize Cargo workspace (`crates/sbr-daemon`)
 - [x] Add dependencies: `core-foundation`, `tokio`, `serde`, `toml`, `tracing`, `objc2`
 - [x] Set up `config.rs` with TOML loader and default config
 - [x] Set up `tracing` based logging
-
-### Capture: AX Watcher (`capture/ax_watcher.rs`)
 - [x] Get frontmost app PID via `NSWorkspace` + `msg_send!`
-- [x] Create `AXUIElementCreateApplication(pid)` handle
-- [x] Read `kAXFocusedUIElementAttribute` → focused element
-- [x] Read `kAXSelectedTextAttribute` from focused element
-- [x] Recursive UI tree traversal: read `kAXChildrenAttribute` + `kAXValueAttribute`
-- [x] Filter out password fields (`kAXSecureTextField` role)
-- [x] Filter out empty / whitespace-only strings
-- [x] Emit structured `CaptureEvent { app, window_title, texts, timestamp }` on change
-- [x] Poll loop with configurable interval (default 1s)
-- [x] Content hash dedup (skip unchanged windows)
-
-### Config
-- [x] `capture.ax_enabled = true`
-- [x] `capture.screenshot_enabled = false`
-- [x] `capture.poll_interval_ms = 1000`
-- [x] `capture.excluded_apps = ["1Password", "Keychain", ...]`
-
-### CI
+- [x] Recursive AX UI tree traversal, filter password fields + empty strings
+- [x] Emit `CaptureEvent`, poll loop with configurable interval
+- [x] Content hash dedup
 - [x] GitHub Actions CI on `macos-latest`
-- [x] `cargo fmt --check`, `cargo clippy -D warnings`, `cargo build`, `cargo test`
-- [x] `rustfmt.toml` pinned to `max_width = 100`
 
 ---
 
@@ -43,39 +24,37 @@ Progress tracker. Updated as work proceeds.
 
 > Goal: chunk captured text, embed it locally via Ollama, store vectors in qdrant.
 
-- [x] `chunker.rs`: sliding window chunking (configurable size + overlap)
-- [x] `chunker.rs`: content hash dedup
-- [x] `embedder.rs`: async HTTP client calling Ollama `/api/embed`
-- [x] `store.rs`: qdrant client — create collection + upsert vectors with payload
-- [x] `store.rs`: payload schema `{ text, app_name, window_title, timestamp, source }`
+- [x] `chunker.rs`: sliding window chunking + content hash dedup
+- [x] `embedder.rs`: async Ollama `/api/embed` client
+- [x] `store.rs`: qdrant client — collection + upsert + dedup check
 - [x] Wire `ax_watcher` → `chunker` → `embedder` → `store` in `main.rs`
-- [x] Docker Compose for local qdrant (`docker/docker-compose.yml`)
+- [x] Docker Compose for local qdrant
 
 ---
 
-## v0.3 — Router Engine + CLI Hint 🔄 IN PROGRESS
+## v0.3 — Router Engine + CLI Hint ✅ DONE
 
-> Goal: given current context, retrieve relevant memories and decide whether to surface a hint.
+> Goal: given current context, retrieve relevant memories and surface a hint.
 
-- [x] `context.rs`: detect current task context (active app + window title + focused text)
-- [x] `engine.rs` / `router.rs`: embed current context, query qdrant top-k
-- [x] `router.rs`: relevance threshold filter (score >= 0.75)
-- [x] `router.rs`: hint decision logic (30s cooldown per app)
-- [x] CLI output: print hint to stdout with source provenance
+- [x] `context.rs`: current task context from `CaptureEvent`
+- [x] `router.rs`: embed context, query qdrant top-5, threshold filter (>= 0.75)
+- [x] Hint cooldown: 30s per app
 - [x] `sbr-daemon ask "<query>"` manual query subcommand
-- [ ] Integration smoke test: run daemon for 60s, verify hints appear in stdout
+- [x] `print_hints`: stdout output with app, timestamp, score, text snippet
 
 ---
 
-## v0.4 — Screenshot Fallback
+## v0.4 — Screenshot Fallback 🔄 IN PROGRESS
 
 > Goal: for apps where AX returns nothing (Figma, YouTube), fall back to screenshot + vision model.
 
-- [ ] `screenshot.rs`: detect when AX tree returns < N chars
-- [ ] `screenshot.rs`: capture screen with `xcap` crate
-- [ ] `screenshot.rs`: send image to Ollama vision model (`qwen2.5vl`)
-- [ ] Parse vision model response → plain text → feed into chunker
-- [ ] Config: `capture.screenshot_enabled = false` (opt-in)
+- [x] `screenshot.rs`: `ax_text_too_sparse()` detection (< 50 chars)
+- [x] `screenshot.rs`: capture primary display via `xcap`
+- [x] `screenshot.rs`: send PNG to Ollama vision model (`qwen2.5vl`) via `/api/generate`
+- [x] Wire into `main.rs`: fallback only when `screenshot_enabled = true` AND ax sparse
+- [x] Payload `source` field set to `"screenshot"` vs `"ax"` accordingly
+- [ ] Manual test: open Figma/YouTube, enable screenshot mode, verify text extracted
+- [ ] Config docs: document `capture.screenshot_enabled = true` in README
 
 ---
 
