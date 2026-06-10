@@ -1,5 +1,6 @@
 mod capture;
 mod config;
+mod memory;
 
 use std::time::Duration;
 use tokio::time::sleep;
@@ -20,8 +21,6 @@ async fn main() {
     loop {
         match watcher.poll().await {
             Some(event) => {
-                // v0.1: just print to stdout
-                // v0.2: this will feed into chunker -> embedder -> store
                 println!(
                     "[{}] {} | {} chars captured",
                     event.timestamp.format("%H:%M:%S"),
