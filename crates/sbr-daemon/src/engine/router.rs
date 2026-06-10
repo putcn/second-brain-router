@@ -28,7 +28,6 @@ pub async fn query(
 ) -> Result<Vec<Hit>> {
     let mut builder = SearchPointsBuilder::new(COLLECTION, vector, TOP_K).with_payload(true);
 
-    // Optionally restrict search to memories from the same app
     if let Some(app) = app_filter {
         let filter = Filter::must([Condition::matches("app_name", app.to_string())]);
         builder = builder.filter(filter);
@@ -46,20 +45,21 @@ pub async fn query(
         .filter_map(|r| {
             let payload = &r.payload;
             let text = payload.get("text")?.as_str()?.to_string();
+            // qdrant Value::as_str() returns Option<&String>, so use map_or to get &str
             let app_name = payload
                 .get("app_name")
                 .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
+                .map_or("unknown", |v| v)
                 .to_string();
             let window_title = payload
                 .get("window_title")
                 .and_then(|v| v.as_str())
-                .unwrap_or("")
+                .map_or("", |v| v)
                 .to_string();
             let timestamp = payload
                 .get("timestamp")
                 .and_then(|v| v.as_str())
-                .unwrap_or("")
+                .map_or("", |v| v)
                 .to_string();
             Some(Hit {
                 text,
@@ -105,7 +105,6 @@ mod tests {
 
     #[test]
     fn test_print_hints_empty() {
-        // smoke test — just verify it doesn't panic
         print_hints(&[]);
     }
 
