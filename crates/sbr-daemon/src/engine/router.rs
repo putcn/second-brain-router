@@ -15,6 +15,8 @@ const TOP_K: u64 = 5;
 pub struct Hit {
     pub text: String,
     pub app_name: String,
+    /// Reserved for v0.5 UI provenance display.
+    #[allow(dead_code)]
     pub window_title: String,
     pub timestamp: String,
     pub score: f32,
@@ -45,7 +47,6 @@ pub async fn query(
         .filter_map(|r| {
             let payload = &r.payload;
             let text = payload.get("text")?.as_str()?.to_string();
-            // qdrant Value::as_str() returns Option<&String>, so use map_or to get &str
             let app_name = payload
                 .get("app_name")
                 .and_then(|v| v.as_str())

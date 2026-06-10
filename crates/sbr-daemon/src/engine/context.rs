@@ -4,6 +4,8 @@ use crate::capture::ax_watcher::CaptureEvent;
 #[derive(Debug, Clone)]
 pub struct Context {
     pub app_name: String,
+    /// Reserved for v0.5 UI provenance display.
+    #[allow(dead_code)]
     pub window_title: String,
     /// Concatenated visible text from the active window (used for embedding).
     pub text: String,

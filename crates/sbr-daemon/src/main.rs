@@ -28,7 +28,6 @@ async fn main() {
 
     let args: Vec<String> = env::args().collect();
 
-    // --- `sbr ask "<query>"` subcommand ---
     if args.get(1).map(|s| s.as_str()) == Some("ask") {
         let query_text = args[2..].join(" ");
         if query_text.is_empty() {
@@ -126,15 +125,12 @@ async fn run_daemon() {
 
                 // --- router: surface hint if context is meaningful ---
                 if ctx.is_meaningful(cfg.capture.min_text_length) {
-                    let should_hint = match (&last_hint_app, &last_hint_at) {
+                    let should_hint = !matches!(
+                        (&last_hint_app, &last_hint_at),
                         (Some(app), Some(t))
                             if app == &ctx.app_name
-                                && t.elapsed().as_millis() < HINT_COOLDOWN_MS =>
-                        {
-                            false
-                        }
-                        _ => true,
-                    };
+                                && t.elapsed().as_millis() < HINT_COOLDOWN_MS
+                    );
 
                     if should_hint {
                         match embedder.embed(&ctx.text).await {
@@ -162,7 +158,6 @@ async fn run_daemon() {
     }
 }
 
-/// Try connecting to qdrant; returns None and logs a warning on failure.
 async fn connect_qdrant() -> Option<MemoryStore> {
     match MemoryStore::connect("http://localhost:6334").await {
         Ok(s) => {
