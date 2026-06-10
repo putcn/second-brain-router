@@ -1,6 +1,9 @@
+#![allow(dead_code)]
+
 use sha2::{Digest, Sha256};
 
 /// A single text chunk with provenance metadata.
+/// Reserved for v0.2 memory pipeline.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
     pub text: String,
@@ -60,8 +63,6 @@ pub fn content_hash(text: &str) -> String {
 mod tests {
     use super::*;
 
-    // ── chunk_text ────────────────────────────────────────────────────────────
-
     #[test]
     fn test_short_text_returned_as_single_chunk() {
         let text = "Hello world";
@@ -116,8 +117,6 @@ mod tests {
         let last = chunks.last().unwrap();
         assert!(text.ends_with(last.as_str()));
     }
-
-    // ── content_hash ──────────────────────────────────────────────────────────
 
     #[test]
     fn test_same_text_produces_same_hash() {

@@ -22,8 +22,12 @@ const K_AX_ROLE_SECURE_TEXT_FIELD: &str = "AXSecureTextField";
 #[derive(Debug, Clone)]
 pub struct CaptureEvent {
     pub app_name: String,
+    /// Reserved for v0.2 memory pipeline
+    #[allow(dead_code)]
     pub window_title: String,
     pub texts: Vec<String>,
+    /// Reserved for v0.2 memory pipeline
+    #[allow(dead_code)]
     pub selected_text: Option<String>,
     pub timestamp: DateTime<Utc>,
 }
@@ -93,18 +97,13 @@ extern "C" {
     ) -> i32;
 }
 
-/// Get frontmost app PID and name via NSWorkspace + raw msg_send!.
-/// We use msg_send! directly because objc2-app-kit gates `processIdentifier`
-/// behind a feature flag that conflicts with other features we need.
 unsafe fn get_frontmost_app() -> Option<(i32, String)> {
     let workspace = NSWorkspace::sharedWorkspace();
     let active_app = workspace.frontmostApplication()?;
 
-    // pid_t is i32 on Apple platforms
     let pid: i32 = msg_send![&*active_app, processIdentifier];
-
-    let ns_name = active_app.localizedName();
-    let name = ns_name
+    let name = active_app
+        .localizedName()
         .map(|n| n.to_string())
         .unwrap_or_else(|| "Unknown".to_string());
 

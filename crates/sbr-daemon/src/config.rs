@@ -8,6 +8,8 @@ pub struct Config {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CaptureConfig {
     pub ax_enabled: bool,
+    /// Reserved for v0.4 screenshot fallback
+    #[allow(dead_code)]
     pub screenshot_enabled: bool,
     pub poll_interval_ms: u64,
     pub excluded_apps: Vec<String>,
@@ -52,6 +54,8 @@ impl Config {
     }
 
     /// Returns true if the given app name should be skipped.
+    /// Reserved for v0.1 watcher integration (tested via unit tests).
+    #[allow(dead_code)]
     pub fn is_excluded(&self, app_name: &str) -> bool {
         self.capture
             .excluded_apps
