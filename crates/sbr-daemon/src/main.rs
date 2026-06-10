@@ -13,7 +13,10 @@ async fn main() {
         .init();
 
     let cfg = config::Config::load_or_default();
-    info!("sbr-daemon starting. poll_interval={}ms", cfg.capture.poll_interval_ms);
+    info!(
+        "sbr-daemon starting. poll_interval={}ms",
+        cfg.capture.poll_interval_ms
+    );
     info!("excluded apps: {:?}", cfg.capture.excluded_apps);
 
     let mut watcher = capture::ax_watcher::AXWatcher::new(cfg.clone());

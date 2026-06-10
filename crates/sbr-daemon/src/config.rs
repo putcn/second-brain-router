@@ -36,8 +36,8 @@ impl Default for Config {
 
 impl Config {
     pub fn load_or_default() -> Self {
-        let config_path = dirs::config_dir()
-            .map(|p| p.join("sbr").join("config.toml"));
+        let config_path =
+            dirs::config_dir().map(|p| p.join("sbr").join("config.toml"));
 
         if let Some(path) = config_path {
             if path.exists() {
@@ -97,7 +97,6 @@ mod tests {
     #[test]
     fn test_excluded_app_partial_match() {
         let cfg = default_config();
-        // partial match should still be excluded
         assert!(cfg.is_excluded("1Password 7 - Password Manager"));
     }
 
@@ -126,7 +125,10 @@ excluded_apps = ["Bitwarden", "Keychain Access"]
         assert_eq!(cfg.capture.poll_interval_ms, 500);
         assert_eq!(cfg.capture.max_tree_depth, 5);
         assert_eq!(cfg.capture.min_text_length, 20);
-        assert_eq!(cfg.capture.excluded_apps, vec!["Bitwarden", "Keychain Access"]);
+        assert_eq!(
+            cfg.capture.excluded_apps,
+            vec!["Bitwarden", "Keychain Access"]
+        );
     }
 
     #[test]

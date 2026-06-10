@@ -19,12 +19,7 @@ pub enum ChunkSource {
 
 /// Split `text` into overlapping chunks of `chunk_size` chars with `overlap` chars overlap.
 /// Filters out chunks shorter than `min_length`.
-pub fn chunk_text(
-    text: &str,
-    chunk_size: usize,
-    overlap: usize,
-    min_length: usize,
-) -> Vec<String> {
+pub fn chunk_text(text: &str, chunk_size: usize, overlap: usize, min_length: usize) -> Vec<String> {
     if text.trim().len() < min_length {
         return vec![];
     }
@@ -65,7 +60,7 @@ pub fn content_hash(text: &str) -> String {
 mod tests {
     use super::*;
 
-    // ── chunk_text ─────────────────────────────────────────────────────────────────
+    // ── chunk_text ────────────────────────────────────────────────────────────
 
     #[test]
     fn test_short_text_returned_as_single_chunk() {
@@ -82,11 +77,9 @@ mod tests {
 
     #[test]
     fn test_long_text_splits_into_multiple_chunks() {
-        // 50 chars, chunk_size=20, overlap=5 => step=15
         let text = "a".repeat(50);
         let chunks = chunk_text(&text, 20, 5, 1);
         assert!(chunks.len() > 1);
-        // every chunk should be <= 20 chars
         for c in &chunks {
             assert!(c.len() <= 20);
         }
@@ -94,9 +87,10 @@ mod tests {
 
     #[test]
     fn test_overlap_means_chunks_share_content() {
-        let text: String = (0..40).map(|i| char::from_digit(i % 10, 10).unwrap()).collect();
+        let text: String = (0..40)
+            .map(|i| char::from_digit(i % 10, 10).unwrap())
+            .collect();
         let chunks = chunk_text(&text, 10, 5, 1);
-        // With overlap=5, chunk[1] should start 5 chars into chunk[0]
         assert!(chunks.len() >= 2);
         let overlap_region = &chunks[0][5..10];
         assert!(chunks[1].starts_with(overlap_region));
@@ -120,11 +114,10 @@ mod tests {
         let text = "a".repeat(35);
         let chunks = chunk_text(&text, 20, 5, 1);
         let last = chunks.last().unwrap();
-        // last chunk must end at the last char of text
         assert!(text.ends_with(last.as_str()));
     }
 
-    // ── content_hash ───────────────────────────────────────────────────────────
+    // ── content_hash ──────────────────────────────────────────────────────────
 
     #[test]
     fn test_same_text_produces_same_hash() {
@@ -151,6 +144,6 @@ mod tests {
     fn test_hash_is_hex_string() {
         let h = content_hash("test");
         assert!(h.chars().all(|c| c.is_ascii_hexdigit()));
-        assert_eq!(h.len(), 64); // SHA-256 = 32 bytes = 64 hex chars
+        assert_eq!(h.len(), 64);
     }
 }

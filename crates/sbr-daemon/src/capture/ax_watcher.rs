@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use core_foundation::{
+    array::{CFArray, CFArrayRef},
     base::{CFType, TCFType},
     string::{CFString, CFStringRef},
-    array::{CFArray, CFArrayRef},
 };
 use std::collections::HashSet;
 use tracing::{debug, warn};
@@ -50,7 +50,10 @@ impl AXWatcher {
         let (pid, app_name) = unsafe { get_frontmost_app()? };
 
         // Check excluded apps
-        if self.config.capture.excluded_apps
+        if self
+            .config
+            .capture
+            .excluded_apps
             .iter()
             .any(|ex| app_name.contains(ex.as_str()))
         {
@@ -59,9 +62,7 @@ impl AXWatcher {
         }
 
         // Capture via AX API
-        let event = unsafe {
-            capture_ax_content(pid, app_name, &self.config)
-        };
+        let event = unsafe { capture_ax_content(pid, app_name, &self.config) };
 
         if let Some(ref ev) = event {
             let hash = compute_hash(&ev.texts);
@@ -77,7 +78,7 @@ impl AXWatcher {
 }
 
 fn compute_hash(texts: &[String]) -> String {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     for t in texts {
         hasher.update(t.as_bytes());
@@ -85,7 +86,7 @@ fn compute_hash(texts: &[String]) -> String {
     hex::encode(hasher.finalize())
 }
 
-// ─── Unsafe FFI to macOS AX API ──────────────────────────────────────────────
+// ─── Unsafe FFI to macOS AX API ───────────────────────────────────────────────
 //
 // These functions call into macOS ApplicationServices framework directly.
 // TODO: replace with safe wrappers from `accessibility` crate once v0.1 is validated.
@@ -106,8 +107,8 @@ extern "C" {
 }
 
 unsafe fn get_frontmost_app() -> Option<(i32, String)> {
-    use objc2_app_kit::NSWorkspace;
     use objc2::rc::Retained;
+    use objc2_app_kit::NSWorkspace;
 
     let workspace = NSWorkspace::sharedWorkspace();
     let active_app = workspace.frontmostApplication()?;
@@ -120,11 +121,7 @@ unsafe fn get_frontmost_app() -> Option<(i32, String)> {
     Some((pid, name))
 }
 
-unsafe fn capture_ax_content(
-    pid: i32,
-    app_name: String,
-    config: &Config,
-) -> Option<CaptureEvent> {
+unsafe fn capture_ax_content(pid: i32, app_name: String, config: &Config) -> Option<CaptureEvent> {
     let ax_app = AXUIElementCreateApplication(pid);
     if ax_app.is_null() {
         warn!("AXUIElementCreateApplication returned null for pid={}", pid);
@@ -132,8 +129,7 @@ unsafe fn capture_ax_content(
     }
 
     // Get window title
-    let window_title = read_ax_string(ax_app, K_AX_WINDOWS_ATTRIBUTE)
-        .unwrap_or_default();
+    let window_title = read_ax_string(ax_app, K_AX_WINDOWS_ATTRIBUTE).unwrap_or_default();
 
     // Get selected text from focused element
     let mut focused_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
@@ -170,17 +166,11 @@ unsafe fn capture_ax_content(
     })
 }
 
-unsafe fn read_ax_string(
-    element: *mut std::ffi::c_void,
-    attribute: &str,
-) -> Option<String> {
+unsafe fn read_ax_string(element: *mut std::ffi::c_void, attribute: &str) -> Option<String> {
     let mut value_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     let attr = CFString::new(attribute);
-    let err = AXUIElementCopyAttributeValue(
-        element,
-        attr.as_concrete_TypeRef(),
-        &mut value_ptr,
-    );
+    let err =
+        AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut value_ptr);
     if err != 0 || value_ptr.is_null() {
         return None;
     }
@@ -219,7 +209,8 @@ unsafe fn traverse_ax_tree(
     // Recurse into children
     let mut children_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     let attr = CFString::new(K_AX_CHILDREN_ATTRIBUTE);
-    let err = AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut children_ptr);
+    let err =
+        AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut children_ptr);
     if err != 0 || children_ptr.is_null() {
         return;
     }
