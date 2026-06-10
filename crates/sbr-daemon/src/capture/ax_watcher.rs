@@ -46,10 +46,8 @@ impl AXWatcher {
             return None;
         }
 
-        // Get frontmost app info via NSWorkspace (unsafe FFI)
         let (pid, app_name) = unsafe { get_frontmost_app()? };
 
-        // Check excluded apps
         if self
             .config
             .capture
@@ -61,7 +59,6 @@ impl AXWatcher {
             return None;
         }
 
-        // Capture via AX API
         let event = unsafe { capture_ax_content(pid, app_name, &self.config) };
 
         if let Some(ref ev) = event {
@@ -85,11 +82,6 @@ fn compute_hash(texts: &[String]) -> String {
     }
     hex::encode(hasher.finalize())
 }
-
-// ─── Unsafe FFI to macOS AX API ───────────────────────────────────────────────
-//
-// These functions call into macOS ApplicationServices framework directly.
-// TODO: replace with safe wrappers from `accessibility` crate once v0.1 is validated.
 
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
@@ -128,10 +120,8 @@ unsafe fn capture_ax_content(pid: i32, app_name: String, config: &Config) -> Opt
         return None;
     }
 
-    // Get window title
     let window_title = read_ax_string(ax_app, K_AX_WINDOWS_ATTRIBUTE).unwrap_or_default();
 
-    // Get selected text from focused element
     let mut focused_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     let attr = CFString::new(K_AX_FOCUSED_UI_ELEMENT_ATTRIBUTE);
     AXUIElementCopyAttributeValue(ax_app, attr.as_concrete_TypeRef(), &mut focused_ptr);
@@ -142,7 +132,6 @@ unsafe fn capture_ax_content(pid: i32, app_name: String, config: &Config) -> Opt
         None
     };
 
-    // Traverse UI tree for all visible text
     let mut texts: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     traverse_ax_tree(
@@ -169,12 +158,10 @@ unsafe fn capture_ax_content(pid: i32, app_name: String, config: &Config) -> Opt
 unsafe fn read_ax_string(element: *mut std::ffi::c_void, attribute: &str) -> Option<String> {
     let mut value_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     let attr = CFString::new(attribute);
-    let err =
-        AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut value_ptr);
+    let err = AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut value_ptr);
     if err != 0 || value_ptr.is_null() {
         return None;
     }
-    // Try to cast to CFString
     let cf_type = CFType::wrap_under_create_rule(value_ptr as _);
     cf_type.downcast::<CFString>().map(|s| s.to_string())
 }
@@ -190,14 +177,12 @@ unsafe fn traverse_ax_tree(
         return;
     }
 
-    // Skip secure text fields (password inputs)
     if let Some(role) = read_ax_string(element, K_AX_ROLE_ATTRIBUTE) {
         if role == K_AX_ROLE_SECURE_TEXT_FIELD {
             return;
         }
     }
 
-    // Read text value of current node
     if let Some(text) = read_ax_string(element, K_AX_VALUE_ATTRIBUTE) {
         let text = text.trim().to_string();
         if text.len() >= min_len && !seen.contains(&text) {
@@ -206,16 +191,13 @@ unsafe fn traverse_ax_tree(
         }
     }
 
-    // Recurse into children
     let mut children_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     let attr = CFString::new(K_AX_CHILDREN_ATTRIBUTE);
-    let err =
-        AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut children_ptr);
+    let err = AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut children_ptr);
     if err != 0 || children_ptr.is_null() {
         return;
     }
 
-    // Cast to CFArray and iterate
     let array = CFArray::<CFType>::wrap_under_create_rule(children_ptr as _);
     for child in array.iter() {
         let child_ptr = child.as_CFTypeRef() as *mut std::ffi::c_void;

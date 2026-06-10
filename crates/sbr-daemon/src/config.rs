@@ -36,8 +36,7 @@ impl Default for Config {
 
 impl Config {
     pub fn load_or_default() -> Self {
-        let config_path =
-            dirs::config_dir().map(|p| p.join("sbr").join("config.toml"));
+        let config_path = dirs::config_dir().map(|p| p.join("sbr").join("config.toml"));
 
         if let Some(path) = config_path {
             if path.exists() {
