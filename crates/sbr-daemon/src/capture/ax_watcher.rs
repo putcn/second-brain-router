@@ -33,7 +33,10 @@ pub struct AXWatcher {
 
 impl AXWatcher {
     pub fn new(config: Config) -> Self {
-        AXWatcher { config, last_content_hash: None }
+        AXWatcher {
+            config,
+            last_content_hash: None,
+        }
     }
 
     pub async fn poll(&mut self) -> Option<CaptureEvent> {
@@ -94,8 +97,6 @@ unsafe fn get_frontmost_app() -> Option<(i32, String)> {
     let workspace = NSWorkspace::sharedWorkspace();
     let active_app = workspace.frontmostApplication()?;
 
-    // processIdentifier is exposed as a plain method on NSRunningApplication
-    // via objc2-app-kit; it returns pid_t which is i32 on Apple platforms.
     let pid: i32 = active_app.processIdentifier();
     let name = active_app
         .localizedName()
