@@ -1,9 +1,8 @@
-#![allow(dead_code)]
-
 use sha2::{Digest, Sha256};
 
 /// A single text chunk with provenance metadata.
 /// Reserved for v0.2 memory pipeline.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
     pub text: String,
@@ -13,6 +12,7 @@ pub struct Chunk {
     pub source: ChunkSource,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChunkSource {
     AxTree,

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use anyhow::{Context, Result};
 use qdrant_client::{
     qdrant::{
@@ -37,6 +35,11 @@ impl MemoryStore {
             .build()
             .with_context(|| format!("failed to connect to qdrant at {}", url))?;
         Ok(MemoryStore { client })
+    }
+
+    /// Expose the inner qdrant client for the router engine.
+    pub fn client_ref(&self) -> &Qdrant {
+        &self.client
     }
 
     /// Ensure the collection exists. Safe to call on every startup (no-ops if already exists).

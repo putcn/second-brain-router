@@ -26,7 +26,7 @@ Progress tracker. Updated as work proceeds.
 - [x] Poll loop with configurable interval (default 1s)
 - [x] Content hash dedup (skip unchanged windows)
 
-### Config (`config/default.toml`)
+### Config
 - [x] `capture.ax_enabled = true`
 - [x] `capture.screenshot_enabled = false`
 - [x] `capture.poll_interval_ms = 1000`
@@ -37,38 +37,33 @@ Progress tracker. Updated as work proceeds.
 - [x] `cargo fmt --check`, `cargo clippy -D warnings`, `cargo build`, `cargo test`
 - [x] `rustfmt.toml` pinned to `max_width = 100`
 
-### Unit Tests
-- [x] `config.rs`: 7 tests covering defaults, exclusions, TOML parsing
-- [x] `chunker.rs`: 11 tests covering chunking logic and content hash
-
 ---
 
-## v0.2 — Memory Pipeline 🔄 IN PROGRESS
+## v0.2 — Memory Pipeline ✅ DONE
 
 > Goal: chunk captured text, embed it locally via Ollama, store vectors in qdrant.
 
 - [x] `chunker.rs`: sliding window chunking (configurable size + overlap)
 - [x] `chunker.rs`: content hash dedup
-- [ ] `embedder.rs`: async HTTP client calling Ollama `/api/embed` (model: `nomic-embed-text`)
-- [ ] `embedder.rs`: unit test with mock HTTP server
-- [ ] `store.rs`: qdrant client — create collection + upsert vectors with payload
-- [ ] `store.rs`: payload schema `{ text, app_name, window_title, timestamp, source }`
-- [ ] `store.rs`: unit test with qdrant test container or mock
-- [ ] Wire `ax_watcher` → `chunker` → `embedder` → `store` in `main.rs`
-- [ ] Docker Compose for local qdrant (`docker/docker-compose.yml`)
+- [x] `embedder.rs`: async HTTP client calling Ollama `/api/embed`
+- [x] `store.rs`: qdrant client — create collection + upsert vectors with payload
+- [x] `store.rs`: payload schema `{ text, app_name, window_title, timestamp, source }`
+- [x] Wire `ax_watcher` → `chunker` → `embedder` → `store` in `main.rs`
+- [x] Docker Compose for local qdrant (`docker/docker-compose.yml`)
 
 ---
 
-## v0.3 — Router Engine + CLI Hint
+## v0.3 — Router Engine + CLI Hint 🔄 IN PROGRESS
 
 > Goal: given current context, retrieve relevant memories and decide whether to surface a hint.
 
-- [ ] `context.rs`: detect current task context (active app + window title + focused text)
-- [ ] `engine.rs`: embed current context, query qdrant top-k
-- [ ] `engine.rs`: relevance threshold filter (skip if score < 0.75)
-- [ ] `engine.rs`: hint decision logic (cooldown per app, no spam)
-- [ ] CLI output: print hint to stdout with source provenance
-- [ ] `sbr ask "<query>"` manual query subcommand
+- [x] `context.rs`: detect current task context (active app + window title + focused text)
+- [x] `engine.rs` / `router.rs`: embed current context, query qdrant top-k
+- [x] `router.rs`: relevance threshold filter (score >= 0.75)
+- [x] `router.rs`: hint decision logic (30s cooldown per app)
+- [x] CLI output: print hint to stdout with source provenance
+- [x] `sbr-daemon ask "<query>"` manual query subcommand
+- [ ] Integration smoke test: run daemon for 60s, verify hints appear in stdout
 
 ---
 
