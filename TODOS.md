@@ -4,50 +4,58 @@ Progress tracker. Updated as work proceeds.
 
 ---
 
-## v0.1 — AX Capture Daemon (current)
+## v0.1 — AX Capture Daemon ✅ DONE
 
 > Goal: a Rust binary that runs on macOS, captures text from the active window via AX API, and prints structured output to stdout.
 
 ### Setup
-- [ ] Initialize Cargo workspace (`crates/sbr-daemon`)
-- [ ] Add dependencies: `accessibility`, `core-foundation`, `tokio`, `serde`, `toml`, `tracing`
-- [ ] Set up `config.rs` with TOML loader and default config
-- [ ] Set up `tracing` based logging
+- [x] Initialize Cargo workspace (`crates/sbr-daemon`)
+- [x] Add dependencies: `core-foundation`, `tokio`, `serde`, `toml`, `tracing`, `objc2`
+- [x] Set up `config.rs` with TOML loader and default config
+- [x] Set up `tracing` based logging
 
 ### Capture: AX Watcher (`capture/ax_watcher.rs`)
-- [ ] Get frontmost app PID via `NSWorkspace` (via objc crate)
-- [ ] Create `AXUIElementCreateApplication(pid)` handle
-- [ ] Read `kAXFocusedUIElementAttribute` → focused element
-- [ ] Read `kAXSelectedTextAttribute` from focused element
-- [ ] Recursive UI tree traversal: read `kAXChildrenAttribute` + `kAXValueAttribute`
-- [ ] Filter out password fields (`kAXSecureTextField` role)
-- [ ] Filter out empty / whitespace-only strings
-- [ ] Emit structured `CaptureEvent { app, window_title, texts, timestamp }` on change
-- [ ] Poll loop with configurable interval (default 1s)
+- [x] Get frontmost app PID via `NSWorkspace` + `msg_send!`
+- [x] Create `AXUIElementCreateApplication(pid)` handle
+- [x] Read `kAXFocusedUIElementAttribute` → focused element
+- [x] Read `kAXSelectedTextAttribute` from focused element
+- [x] Recursive UI tree traversal: read `kAXChildrenAttribute` + `kAXValueAttribute`
+- [x] Filter out password fields (`kAXSecureTextField` role)
+- [x] Filter out empty / whitespace-only strings
+- [x] Emit structured `CaptureEvent { app, window_title, texts, timestamp }` on change
+- [x] Poll loop with configurable interval (default 1s)
+- [x] Content hash dedup (skip unchanged windows)
 
 ### Config (`config/default.toml`)
-- [ ] `capture.ax_enabled = true`
-- [ ] `capture.screenshot_enabled = false`
-- [ ] `capture.poll_interval_ms = 1000`
-- [ ] `capture.excluded_apps = ["1Password", "Keychain"]`
+- [x] `capture.ax_enabled = true`
+- [x] `capture.screenshot_enabled = false`
+- [x] `capture.poll_interval_ms = 1000`
+- [x] `capture.excluded_apps = ["1Password", "Keychain", ...]`
 
-### Testing v0.1
-- [ ] Run daemon, switch between Chrome / Notes / Slack, verify text is captured
-- [ ] Verify password fields are not captured
-- [ ] Verify excluded apps produce no output
+### CI
+- [x] GitHub Actions CI on `macos-latest`
+- [x] `cargo fmt --check`, `cargo clippy -D warnings`, `cargo build`, `cargo test`
+- [x] `rustfmt.toml` pinned to `max_width = 100`
+
+### Unit Tests
+- [x] `config.rs`: 7 tests covering defaults, exclusions, TOML parsing
+- [x] `chunker.rs`: 11 tests covering chunking logic and content hash
 
 ---
 
-## v0.2 — Memory Pipeline
+## v0.2 — Memory Pipeline 🔄 IN PROGRESS
 
-> Goal: chunk captured text, embed it locally, store in qdrant.
+> Goal: chunk captured text, embed it locally via Ollama, store vectors in qdrant.
 
-- [ ] `chunker.rs`: sliding window chunking (512 tokens, 64 overlap)
-- [ ] `chunker.rs`: content hash dedup (skip already-seen chunks)
-- [ ] `embedder.rs`: call Ollama `/api/embed` endpoint (model: `nomic-embed-text`)
-- [ ] `store.rs`: qdrant client, create collection, upsert vectors with payload
-- [ ] Payload schema: `{ text, app, window_title, timestamp, source: "ax" }`
-- [ ] Docker compose for local qdrant
+- [x] `chunker.rs`: sliding window chunking (configurable size + overlap)
+- [x] `chunker.rs`: content hash dedup
+- [ ] `embedder.rs`: async HTTP client calling Ollama `/api/embed` (model: `nomic-embed-text`)
+- [ ] `embedder.rs`: unit test with mock HTTP server
+- [ ] `store.rs`: qdrant client — create collection + upsert vectors with payload
+- [ ] `store.rs`: payload schema `{ text, app_name, window_title, timestamp, source }`
+- [ ] `store.rs`: unit test with qdrant test container or mock
+- [ ] Wire `ax_watcher` → `chunker` → `embedder` → `store` in `main.rs`
+- [ ] Docker Compose for local qdrant (`docker/docker-compose.yml`)
 
 ---
 
@@ -58,9 +66,9 @@ Progress tracker. Updated as work proceeds.
 - [ ] `context.rs`: detect current task context (active app + window title + focused text)
 - [ ] `engine.rs`: embed current context, query qdrant top-k
 - [ ] `engine.rs`: relevance threshold filter (skip if score < 0.75)
-- [ ] `engine.rs`: hint decision logic (don't spam, cooldown per app)
+- [ ] `engine.rs`: hint decision logic (cooldown per app, no spam)
 - [ ] CLI output: print hint to stdout with source provenance
-- [ ] `sbr ask "<query>"` manual query mode
+- [ ] `sbr ask "<query>"` manual query subcommand
 
 ---
 
@@ -81,7 +89,7 @@ Progress tracker. Updated as work proceeds.
 > Goal: non-intrusive floating hint window that appears at the right moment.
 
 - [ ] Init Tauri app (`crates/sbr-ui`)
-- [ ] IPC between daemon and UI via local socket or Tauri commands
+- [ ] IPC between daemon and UI via local Unix socket
 - [ ] Floating hint window (always on top, click-through when idle)
 - [ ] Dismiss on click or timeout (5s)
 - [ ] Show source provenance (app name + timestamp)
