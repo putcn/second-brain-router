@@ -25,7 +25,7 @@ pub struct MemoryPayload {
     pub source: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MemoryStore {
     client: Qdrant,
 }
