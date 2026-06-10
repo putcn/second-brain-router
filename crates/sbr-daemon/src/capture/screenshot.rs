@@ -1,7 +1,7 @@
 //! Screenshot fallback for apps where AX returns too little text (e.g. Figma, YouTube).
 //!
 //! When enabled (`capture.screenshot_enabled = true`), this module:
-//! 1. Detects that AX returned fewer chars than `min_chars_for_ax`
+//! 1. Detects that AX returned fewer chars than `MIN_CHARS_FOR_AX`
 //! 2. Captures the primary display via `xcap`
 //! 3. Sends the image to Ollama vision model and extracts plain text
 //! 4. Returns the text so it can be fed into the chunker
@@ -50,13 +50,20 @@ fn capture_screen() -> Result<Vec<u8>> {
     use xcap::Monitor;
 
     let monitors = Monitor::all().context("failed to enumerate monitors")?;
-    let primary = monitors.into_iter().next().context("no monitor found")?;
+    let primary = monitors
+        .into_iter()
+        .find(|m| m.is_primary())
+        .context("no primary monitor found")?;
 
     let image = primary.capture_image().context("monitor capture failed")?;
 
+    // xcap returns image::RgbaImage — encode to PNG via image crate
     let mut buf: Vec<u8> = Vec::new();
-    image
-        .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+    image::DynamicImage::ImageRgba8(image)
+        .write_to(
+            &mut std::io::Cursor::new(&mut buf),
+            image::ImageFormat::Png,
+        )
         .context("PNG encode failed")?;
 
     debug!("PNG encoded: {} bytes", buf.len());
